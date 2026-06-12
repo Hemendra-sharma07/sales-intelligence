@@ -29,7 +29,6 @@ sales-intelligence/
 │   ├── feature_eng.py
 │   └── model_utils.py
 ├── train_model.ipynb
-├── train_model.py
 ├── requirements.txt
 └── README.md
 ```
