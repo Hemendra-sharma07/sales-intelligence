@@ -28,6 +28,8 @@ sales-intelligence/
 │   ├── db_utils.py
 │   ├── feature_eng.py
 │   └── model_utils.py
+├── tests/
+|   ├── test_label_mappings.py
 ├── train_model.ipynb
 ├── requirements.txt
 └── README.md
