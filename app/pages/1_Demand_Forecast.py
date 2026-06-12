@@ -10,7 +10,8 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
-from src.feature_eng import SEASON_MAP
+from src.db_utils import load_raw_data
+from src.feature_eng import SEASON_MAP, build_label_mappings
 from src.model_utils import estimate_inventory_risk, load_model_bundle, prepare_prediction_input
 
 
@@ -47,6 +48,28 @@ except FileNotFoundError as exc:
 
 
 @st.cache_data
+def load_reference_labels(metadata: dict | None = None) -> tuple[dict, dict, dict]:
+    if metadata and metadata.get("label_mappings"):
+        label_mappings = metadata["label_mappings"]
+        return (
+            label_mappings.get("Store", {}),
+            label_mappings.get("Dept", {}),
+            label_mappings.get("Type", {}),
+        )
+
+    train_raw, _, _, stores_raw = load_raw_data()
+    reference_df = train_raw.copy()
+    if "Type" not in reference_df.columns and stores_raw is not None:
+        reference_df = reference_df.merge(stores_raw[["Store", "Type"]], on="Store", how="left")
+
+    mappings = build_label_mappings(reference_df)
+    return mappings.get("Store", {}), mappings.get("Dept", {}), mappings.get("Type", {})
+
+
+store_map, dept_map, type_map = load_reference_labels(metadata)
+
+
+@st.cache_data
 def load_forecast_history() -> pd.DataFrame:
     if FORECAST_FILE.exists():
         history = pd.read_csv(FORECAST_FILE, parse_dates=["Month"])
@@ -62,9 +85,24 @@ st.markdown("<div class='forecast-panel'><h4 style='margin:0 0 0.5rem 0; color:#
 with st.form("forecast_form"):
     col1, col2 = st.columns(2)
     with col1:
-        store = st.selectbox("Store", list(range(1, 46)))
-        dept = st.number_input("Department", min_value=1, max_value=99, value=1, step=1)
-        store_type = st.selectbox("Store Type", ["A", "B", "C"])
+        store_options = list(store_map.keys())
+        store = st.selectbox(
+            "Store",
+            options=store_options,
+            format_func=lambda value: store_map.get(value, f"Store {value}"),
+        )
+        dept_options = list(dept_map.keys())
+        dept = st.selectbox(
+            "Department",
+            options=dept_options,
+            format_func=lambda value: dept_map.get(value, f"Department {value}"),
+        )
+        type_options = list(type_map.keys())
+        store_type = st.selectbox(
+            "Store Type",
+            options=type_options,
+            format_func=lambda value: type_map.get(value, f"Store Type {value}"),
+        )
         size = st.number_input("Store Size", min_value=1000, max_value=250000, value=150000, step=1000)
         current_inventory_value = st.number_input(
             "Current Inventory Value",
@@ -110,6 +148,10 @@ if submitted:
     c2.metric("Suggested Reorder Value", f"${risk['reorder_value']:,.0f}")
     c3.metric("Risk Level", risk["risk"])
 
+    st.caption(
+        f"Selected inputs: {store_map.get(store, f'Store {store}')}, {dept_map.get(dept, f'Department {dept}')}, {type_map.get(store_type, f'Store Type {store_type}')}, {'Holiday Week' if is_holiday else 'Non-Holiday Week'}"
+    )
+
     st.markdown(
         f"""
         <div class='forecast-panel' style='margin-top: 0.8rem;'><b>Planning insight:</b> Coverage ratio is <b>{risk['coverage_ratio']:.2f}</b>. The inventory recommendation is based on the forecasted demand and the stock value you entered.</div>
@@ -128,7 +170,7 @@ if not forecast_history.empty:
             y=["Actual_Monthly_Demand", "Predicted_Monthly_Demand"],
             markers=True,
             labels={"value": "Demand", "variable": "Series"},
-            title=f"Actual vs Predicted Demand for Store {store}, Dept {dept}",
+            title=f"Actual vs Predicted Demand for {store_map.get(store, f'Store {store}')}, {dept_map.get(dept, f'Department {dept}')}",
         )
         fig.update_layout(height=370, margin=dict(l=10, r=10, t=40, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})

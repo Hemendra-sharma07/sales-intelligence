@@ -26,6 +26,187 @@ SEASON_MAP = {
     11: "Autumn",
 }
 
+STORE_LABELS = {
+    1: "North Plaza Store",
+    2: "Downtown Market",
+    3: "Riverfront Superstore",
+    4: "Westfield Center",
+    5: "Sunset Retail Hub",
+    6: "Midtown Express",
+    7: "Harbor Point Store",
+    8: "Green Valley Market",
+    9: "Lakeside Outlet",
+    10: "Cedar Grove Store",
+    11: "Elm Street Shop",
+    12: "Oak Ridge Market",
+    13: "Pine Avenue Store",
+    14: "Central Square Retail",
+    15: "Hilltop Warehouse",
+    16: "Brookside Store",
+    17: "Maple Grove Market",
+    18: "Crestview Shop",
+    19: "Summit Point Store",
+    20: "Valley View Market",
+    21: "Highland Express",
+    22: "Parkside Retail",
+    23: "Orchard Lane Store",
+    24: "Beacon Hill Market",
+    25: "Meadowbrook Shop",
+    26: "Royal Oak Store",
+    27: "Silver Creek Market",
+    28: "Fairway Plaza",
+    29: "Stonebridge Store",
+    30: "Garden City Market",
+    31: "Liberty Square Store",
+    32: "Heritage Plaza",
+    33: "Canyon Ridge Store",
+    34: "Copper Creek Market",
+    35: "Timberline Store",
+    36: "Magnolia Park Shop",
+    37: "Golden Gate Store",
+    38: "Brookfield Market",
+    39: "Franklin Square Store",
+    40: "Westbrook Market",
+    41: "Eastgate Retail",
+    42: "Pinecrest Store",
+    43: "Canyon View Market",
+    44: "Redwood Square Store",
+    45: "Fairfield Hub",
+}
+
+DEPARTMENT_LABELS = {
+    1: "Electronics",
+    2: "Home Appliances",
+    3: "Furniture",
+    4: "Decor & Lighting",
+    5: "Outdoor & Gardening",
+    6: "Sports & Fitness",
+    7: "Automotive",
+    8: "Toys & Games",
+    9: "Books & Media",
+    10: "Clothing",
+    11: "Shoes",
+    12: "Jewelry & Accessories",
+    13: "Beauty & Personal Care",
+    14: "Health & Wellness",
+    15: "Pet Supplies",
+    16: "Grocery",
+    17: "Bakery",
+    18: "Dairy",
+    19: "Frozen Foods",
+    20: "Pantry Staples",
+    21: "Beverages",
+    22: "Household Essentials",
+    23: "Cleaning Supplies",
+    24: "Baby & Kids",
+    25: "Office Supplies",
+    26: "Tech Accessories",
+    27: "Musical Instruments",
+    28: "Craft & Hobby",
+    29: "Party Supplies",
+    30: "Seasonal Decor",
+    31: "Luggage",
+    32: "Camping Gear",
+    33: "Lawn & Garden",
+    34: "Tools & Hardware",
+    35: "Building Materials",
+    36: "Pharmacy",
+    37: "Optical",
+    38: "Mattress & Sleep",
+    39: "Kitchenware",
+    40: "Dining & Entertaining",
+    41: "Bath & Shower",
+    42: "Bedding",
+    43: "Laundry & Fabric Care",
+    44: "Paper Goods",
+    45: "Small Appliances",
+    46: "Smart Home",
+    47: "Video Games",
+    48: "Mobile Phones",
+    49: "Cameras & Photography",
+    50: "Wearable Tech",
+    51: "Fitness Wear",
+    52: "Men's Apparel",
+    53: "Women's Apparel",
+    54: "Kids Apparel",
+    55: "Footwear",
+    56: "Handbags",
+    57: "Watches",
+    58: "Makeup",
+    59: "Skin Care",
+    60: "Hair Care",
+    61: "Oral Care",
+    62: "Vitamins",
+    63: "First Aid",
+    64: "Pet Food",
+    65: "Animal Care",
+    66: "Fresh Produce",
+    67: "Meat & Seafood",
+    68: "Deli",
+    69: "Refrigerated",
+    70: "Bread & Bakery",
+    71: "Coffee & Tea",
+    72: "Snacks",
+    73: "Condiments",
+    74: "Canned Goods",
+    75: "Soups & Broths",
+    76: "Frozen Meals",
+    77: "Ice Cream",
+    78: "International Foods",
+    79: "Gift Cards",
+    80: "Seasonal Gifts",
+    81: "Specialty Foods",
+}
+
+
+def build_label_mappings(df: pd.DataFrame) -> dict[str, dict]:
+    """Create human-friendly labels for categorical values used in training and the app."""
+    mappings: dict[str, dict] = {}
+
+    def find_column(candidates: list[str]) -> str | None:
+        for candidate in candidates:
+            if candidate in df.columns:
+                return candidate
+        return None
+
+    if "Store" in df.columns:
+        store_values = sorted({int(value) for value in pd.to_numeric(df["Store"], errors="coerce").dropna().unique()})
+        mappings["Store"] = {
+            value: STORE_LABELS.get(value, f"Store {value}") for value in store_values
+        }
+
+    if "Dept" in df.columns:
+        dept_values = sorted({int(value) for value in pd.to_numeric(df["Dept"], errors="coerce").dropna().unique()})
+        mappings["Dept"] = {
+            value: DEPARTMENT_LABELS.get(value, f"Department {value}") for value in dept_values
+        }
+
+    if "Type" in df.columns:
+        type_values = [value for value in df["Type"].dropna().astype(str).unique() if str(value) != "nan"]
+        type_lookup = {"A": "Value Format", "B": "Mid-Market Format", "C": "Premium Format"}
+        mappings["Type"] = {
+            value: type_lookup.get(str(value), f"Store Type {value}") for value in sorted(type_values)
+        }
+
+    holiday_col = find_column(["IsHoliday", "IsHoliday_x", "IsHoliday_y"])
+    if holiday_col is not None:
+        mappings["IsHoliday"] = {0: "Regular Week", 1: "Holiday Week"}
+
+    return mappings
+
+
+def add_display_labels(df: pd.DataFrame, mappings: dict[str, dict] | None = None) -> pd.DataFrame:
+    """Append label columns such as Store_Label and Dept_Label without changing the model inputs."""
+    df = df.copy()
+    if mappings is None:
+        mappings = build_label_mappings(df)
+
+    for column in ["Store", "Dept", "Type", "IsHoliday"]:
+        if column in df.columns and column in mappings:
+            df[f"{column}_Label"] = df[column].map(lambda value: mappings[column].get(value, str(value)))
+
+    return df
+
 
 def merge_walmart_data(
     sales_df: pd.DataFrame,
