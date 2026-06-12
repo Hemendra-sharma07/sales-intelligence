@@ -1,0 +1,25 @@
+# Python virtual environment
+sales_venv/
+.venv/
+venv/
+
+# Python cache and artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Jupyter / notebooks
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+
+# Model / data outputs (keep only source files if desired)
+models/figures/
+models/*.csv
